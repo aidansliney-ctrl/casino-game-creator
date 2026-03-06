@@ -19,29 +19,31 @@ public class ChatController {
             @RequestBody ChatRequest request,
             @RequestHeader(value = "X-API-Key", required = false) String apiKey,
             @RequestHeader(value = "X-AI-Provider", required = false, defaultValue = "gemini") String provider) {
-        String response = aiService.chat(request.getMessage(), request.getHistory(), apiKey, provider);
-        return Map.of("response", response);
+        return aiService.chat(
+                request.getMessage(),
+                request.getHistory(),
+                apiKey,
+                provider,
+                request.getGameContext(),
+                request.getSceneSource());
     }
 
-    // DTO for request
     public static class ChatRequest {
         private String message;
         private List<String> history;
+        private String gameContext;
+        private String sceneSource;
 
-        public String getMessage() {
-            return message;
-        }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
 
-        public void setMessage(String message) {
-            this.message = message;
-        }
+        public List<String> getHistory() { return history; }
+        public void setHistory(List<String> history) { this.history = history; }
 
-        public List<String> getHistory() {
-            return history;
-        }
+        public String getGameContext() { return gameContext; }
+        public void setGameContext(String gameContext) { this.gameContext = gameContext; }
 
-        public void setHistory(List<String> history) {
-            this.history = history;
-        }
+        public String getSceneSource() { return sceneSource; }
+        public void setSceneSource(String sceneSource) { this.sceneSource = sceneSource; }
     }
 }

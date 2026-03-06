@@ -1,3 +1,5 @@
+// VERSIONED BASE TEMPLATE — Read engine/VERSIONING.md before editing this file.
+// Changes to this file affect all new games. Follow the versioning process to avoid breaking saved games.
 
 export class ThreeReelSlotScene {
     audioManager = null;
@@ -609,7 +611,8 @@ export class ThreeReelSlotScene {
         ctx.shadowBlur = 0;
 
         ctx.fillStyle = 'black'; ctx.font = `bold ${18 * scale}px Inter`;
-        ctx.fillText('SPIN', spinX, spinY + 7 * scale);
+        const spinLabel = (this.config.customLabels && this.config.customLabels.spinButton) || 'SPIN';
+        ctx.fillText(spinLabel, spinX, spinY + 7 * scale);
 
         // Stats
         const statsY = height - (isMobile ? 30 : 40);

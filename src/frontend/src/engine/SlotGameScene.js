@@ -1,3 +1,6 @@
+// VERSIONED BASE TEMPLATE — Read engine/VERSIONING.md before editing this file.
+// Changes to this file affect all new games. Follow the versioning process to avoid breaking saved games.
+
 import { Sprite } from './entities/Sprite';
 
 export class SlotGameScene {

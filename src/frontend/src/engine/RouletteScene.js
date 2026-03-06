@@ -1,3 +1,5 @@
+// VERSIONED BASE TEMPLATE — Read engine/VERSIONING.md before editing this file.
+// Changes to this file affect all new games. Follow the versioning process to avoid breaking saved games.
 
 // European Roulette - fully self-contained scene
 // Shares NO code with ThreeReelSlotScene

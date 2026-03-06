@@ -15,6 +15,9 @@ import logo from './assets/logo.png';
 import { ThreeReelSlotScene } from './engine/ThreeReelSlotScene';
 import { RouletteScene } from './engine/RouletteScene';
 import { QuickieDropScene } from './engine/QuickieDropScene';
+import { compileScene } from './engine/SceneCompiler';
+import { getLatestTemplate, getTemplate } from './engine/templates';
+import { VersionPanel } from './components/VersionPanel';
 
 function App() {
     const canvasRef = useRef(null);
@@ -46,6 +49,12 @@ function App() {
     const [saveModalOpen, setSaveModalOpen] = useState(false);
     const [viewMode, setViewMode] = useState('mobile'); // desktop or mobile
 
+    // AI Scene Modification State
+    const [currentSceneSource, setCurrentSceneSource] = useState(null); // null = base template, string = AI-modified
+    const [currentTemplateVersion, setCurrentTemplateVersion] = useState('1.0');
+    const [changeHistory, setChangeHistory] = useState([]); // Track AI change instructions for upgrade replays
+    const [sceneSourceHistory, setSceneSourceHistory] = useState([]); // Undo stack
+    const previousSceneSourceRef = useRef(null); // For error recovery
 
     // AI Settings State
     const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
@@ -66,7 +75,7 @@ function App() {
     // Check if config has changed
     const hasChanges = JSON.stringify(gameConfig) !== JSON.stringify(appliedConfig);
 
-    const updateGame = () => {
+    const updateGame = (sceneSource = currentSceneSource) => {
         if (!gameRef.current) return;
 
         console.log('[App] Updating game with config:', gameConfig);
@@ -76,19 +85,29 @@ function App() {
             audioManagerRef.current = new AudioManager();
         }
 
-        // Create appropriate scene based on game type
         let scene;
-        if (gameConfig.gameType === 'slots-3reel') {
-            scene = new ThreeReelSlotScene(gameConfig);
-        } else if (gameConfig.gameType === 'table-roulette') {
-            scene = new RouletteScene(gameConfig);
-        } else if (gameConfig.gameType === 'quickie-drop') {
-            scene = new QuickieDropScene(gameConfig);
-        } else if (gameConfig.gameType.startsWith('slots')) {
-            scene = new SlotGameScene(gameConfig);
+
+        if (sceneSource) {
+            // AI-modified scene: compile from source string
+            const result = compileScene(sceneSource);
+            if (result.error) {
+                console.error('[App] Scene compilation failed:', result.error);
+                return { error: result.error };
+            }
+            scene = new result.sceneClass(gameConfig);
         } else {
-            // Fallback to test scene for other game types
-            scene = new TestScene();
+            // Built-in scene (base template)
+            if (gameConfig.gameType === 'slots-3reel') {
+                scene = new ThreeReelSlotScene(gameConfig);
+            } else if (gameConfig.gameType === 'table-roulette') {
+                scene = new RouletteScene(gameConfig);
+            } else if (gameConfig.gameType === 'quickie-drop') {
+                scene = new QuickieDropScene(gameConfig);
+            } else if (gameConfig.gameType.startsWith('slots')) {
+                scene = new SlotGameScene(gameConfig);
+            } else {
+                scene = new TestScene();
+            }
         }
 
         // Attach audio manager to scene
@@ -105,6 +124,57 @@ function App() {
                 setUsedAssets(scene.getUsedAssets());
             }
         }, 100);
+
+        return { error: null };
+    };
+
+    // Called by ChatPanel when AI returns modified scene code
+    const handleSceneModified = (newSource, userInstruction) => {
+        // Push current source onto undo stack
+        setSceneSourceHistory(prev => [...prev, currentSceneSource]);
+        previousSceneSourceRef.current = currentSceneSource;
+
+        setCurrentSceneSource(newSource);
+        if (userInstruction) {
+            setChangeHistory(prev => [...prev, userInstruction]);
+        }
+
+        const result = updateGame(newSource);
+        if (result?.error) {
+            // Revert on error
+            setCurrentSceneSource(previousSceneSourceRef.current);
+            setSceneSourceHistory(prev => prev.slice(0, -1));
+            return result;
+        }
+
+        // Set up error recovery for runtime errors
+        if (gameRef.current) {
+            gameRef.current.onSceneError = (err) => {
+                console.error('[App] Runtime scene error, reverting:', err);
+                const prevSource = previousSceneSourceRef.current;
+                setCurrentSceneSource(prevSource);
+                updateGame(prevSource);
+            };
+        }
+
+        return { error: null };
+    };
+
+    // Undo the last AI modification
+    const handleSceneUndo = () => {
+        if (sceneSourceHistory.length === 0) return;
+        const prevSource = sceneSourceHistory[sceneSourceHistory.length - 1];
+        setSceneSourceHistory(prev => prev.slice(0, -1));
+        setChangeHistory(prev => prev.slice(0, -1));
+        setCurrentSceneSource(prevSource);
+        updateGame(prevSource);
+    };
+
+    // Get the current scene source (AI-modified or base template)
+    const getCurrentSceneSource = () => {
+        if (currentSceneSource) return currentSceneSource;
+        const template = getLatestTemplate(gameConfig.gameType);
+        return template ? template.source : null;
     };
 
     const handleAssetChange = (assetId, imageUrl, newGlyph) => {
@@ -123,9 +193,19 @@ function App() {
     // Auto-update when assets or game type changes
     useEffect(() => {
         if (gameRef.current) {
-            updateGame();
+            // Reset AI modifications when game type changes (new base template)
+            setCurrentSceneSource(null);
+            setSceneSourceHistory([]);
+            setChangeHistory([]);
+            updateGame(null);
         }
-    }, [gameConfig.gameType, gameConfig.customAssets]);
+    }, [gameConfig.gameType]);
+
+    useEffect(() => {
+        if (gameRef.current) {
+            updateGame(currentSceneSource);
+        }
+    }, [gameConfig.customAssets]);
 
     // Force resize when switching view modes
     useEffect(() => {
@@ -225,6 +305,9 @@ function App() {
                                 const idx = saved.findIndex(g => g.id === currentSaveId);
                                 if (idx !== -1) {
                                     saved[idx].config = { ...gameConfig };
+                                    saved[idx].sceneSource = currentSceneSource || null;
+                                    saved[idx].templateVersion = currentTemplateVersion;
+                                    saved[idx].changeHistory = [...changeHistory];
                                     saved[idx].timestamp = new Date().toLocaleString() + ' (Updated)';
                                     localStorage.setItem('qtm_saved_games', JSON.stringify(saved));
                                     window.dispatchEvent(new Event('storage'));
@@ -267,6 +350,7 @@ function App() {
                     <div className="flex" style={{ borderBottom: '1px solid var(--border)' }}>
                         <TabButton label="Saved" active={activeTab === 'saved'} onClick={() => setActiveTab('saved')} />
                         <TabButton label="Game Type" active={activeTab === 'config'} onClick={() => setActiveTab('config')} />
+                        <TabButton label="Version" active={activeTab === 'version'} onClick={() => setActiveTab('version')} />
                         <TabButton label="Maths" active={activeTab === 'maths'} onClick={() => setActiveTab('maths')} />
                         <TabButton label="Assets" active={activeTab === 'assets'} onClick={() => setActiveTab('assets')} />
                         <TabButton label="Audio" active={activeTab === 'audio'} onClick={() => setActiveTab('audio')} />
@@ -281,7 +365,11 @@ function App() {
                                 onSelect={(game) => {
                                     setGameConfig(game.config);
                                     setCurrentSaveId(game.id);
-                                    setTimeout(() => updateGame(), 0);
+                                    setCurrentSceneSource(game.sceneSource || null);
+                                    setCurrentTemplateVersion(game.templateVersion || '1.0');
+                                    setChangeHistory(game.changeHistory || []);
+                                    setSceneSourceHistory([]);
+                                    setTimeout(() => updateGame(game.sceneSource || null), 0);
                                 }}
                             />
                         )}
@@ -291,6 +379,22 @@ function App() {
                                 onChange={setGameConfig}
                                 onUpdate={updateGame}
                                 hasChanges={hasChanges}
+                            />
+                        )}
+                        {activeTab === 'version' && (
+                            <VersionPanel
+                                gameType={gameConfig.gameType}
+                                currentVersion={currentTemplateVersion}
+                                onVersionSelect={(version) => {
+                                    setCurrentTemplateVersion(version);
+                                    setCurrentSceneSource(null);
+                                    setSceneSourceHistory([]);
+                                    setChangeHistory([]);
+                                    const tmpl = getTemplate(gameConfig.gameType, version);
+                                    if (tmpl) {
+                                        updateGame(null);
+                                    }
+                                }}
                             />
                         )}
                         {activeTab === 'maths' && (
@@ -373,6 +477,11 @@ function App() {
                     <ChatPanel
                         provider={provider}
                         apiKey={provider === 'gemini' ? geminiKey : anthropicKey}
+                        gameConfig={gameConfig}
+                        sceneSource={getCurrentSceneSource()}
+                        onSceneModified={handleSceneModified}
+                        onSceneUndo={handleSceneUndo}
+                        canUndo={sceneSourceHistory.length > 0}
                     />
                 </aside>
 
@@ -398,6 +507,9 @@ function App() {
                         id: Date.now(),
                         name: name,
                         config: { ...gameConfig },
+                        sceneSource: currentSceneSource || null,
+                        templateVersion: currentTemplateVersion,
+                        changeHistory: [...changeHistory],
                         timestamp: new Date().toLocaleString()
                     };
                     localStorage.setItem('qtm_saved_games', JSON.stringify([newSave, ...saved]));

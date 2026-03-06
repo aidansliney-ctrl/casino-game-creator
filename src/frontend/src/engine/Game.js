@@ -10,6 +10,7 @@ export class Game {
 
         this.scene = null; // Current active scene
         this.assets = {}; // Asset cache
+        this.onSceneError = null; // Callback for runtime errors in AI-generated scenes
     }
 
     start() {
@@ -34,11 +35,21 @@ export class Game {
 
     update(dt) {
         if (this.scene && this.scene.update) {
-            this.scene.update(dt);
+            try {
+                this.scene.update(dt);
+            } catch (e) {
+                console.error('[Game] Scene update error:', e);
+                if (this.onSceneError) this.onSceneError(e);
+            }
         }
     }
 
     render(alpha) {
-        this.renderer.render(this.scene);
+        try {
+            this.renderer.render(this.scene);
+        } catch (e) {
+            console.error('[Game] Scene render error:', e);
+            if (this.onSceneError) this.onSceneError(e);
+        }
     }
 }
