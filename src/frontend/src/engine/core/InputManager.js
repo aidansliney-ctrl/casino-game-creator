@@ -24,6 +24,12 @@ export class InputManager {
         this.events[event].push(callback);
     }
 
+    off(event, callback) {
+        if (!this.events[event]) return;
+        const idx = this.events[event].indexOf(callback);
+        if (idx !== -1) this.events[event].splice(idx, 1);
+    }
+
     emit(event, data) {
         if (this.events[event]) {
             this.events[event].forEach(cb => cb(data));
