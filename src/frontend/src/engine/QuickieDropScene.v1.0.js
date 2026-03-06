@@ -167,16 +167,7 @@ export class QuickieDropScene {
         const img = this.imgs[key];
         if (!img) return;
         if (alpha !== undefined) ctx.globalAlpha = alpha;
-        const imgRatio = img.naturalWidth / img.naturalHeight;
-        let drawW, drawH;
-        if (imgRatio > 1) {
-            drawW = w;
-            drawH = w / imgRatio;
-        } else {
-            drawH = h;
-            drawW = h * imgRatio;
-        }
-        ctx.drawImage(img, x - drawW / 2, y - drawH / 2, drawW, drawH);
+        ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
         if (alpha !== undefined) ctx.globalAlpha = 1;
     }
 
@@ -262,20 +253,19 @@ export class QuickieDropScene {
     }
 
     getUsedAssets() {
-        const defaultImg = (assetId) => IMAGES[ASSET_TO_IMG[assetId]] || null;
         return [
-            { type: 'icon', id: 'quickie-safe', name: 'Safe Tile Icon', color: C.green, glyph: '💎', defaultSrc: defaultImg('quickie-safe'), current: this.config.customAssets?.['quickie-safe'] || null },
-            { type: 'icon', id: 'quickie-bomb', name: 'Bomb Icon', color: '#EF4444', glyph: '💣', defaultSrc: defaultImg('quickie-bomb'), current: this.config.customAssets?.['quickie-bomb'] || null },
-            { type: 'icon', id: 'quickie-mega', name: 'Mega Bomb Icon', color: C.pink, glyph: '💀', defaultSrc: defaultImg('quickie-mega'), current: this.config.customAssets?.['quickie-mega'] || null },
-            { type: 'decoration', id: 'quickie-diamond', name: 'Diamond Sticker', color: C.sky, glyph: '💎', defaultSrc: defaultImg('quickie-diamond'), current: this.config.customAssets?.['quickie-diamond'] || null },
-            { type: 'decoration', id: 'quickie-crown', name: 'Crown Sticker', color: C.yellow, glyph: '👑', defaultSrc: defaultImg('quickie-crown'), current: this.config.customAssets?.['quickie-crown'] || null },
-            { type: 'decoration', id: 'quickie-seven', name: '7 Sticker', color: '#EF4444', glyph: '7', defaultSrc: defaultImg('quickie-seven'), current: this.config.customAssets?.['quickie-seven'] || null },
-            { type: 'decoration', id: 'quickie-cherries', name: 'Cherries Sticker', color: '#EF4444', glyph: '🍒', defaultSrc: defaultImg('quickie-cherries'), current: this.config.customAssets?.['quickie-cherries'] || null },
-            { type: 'decoration', id: 'quickie-clover', name: 'Clover Sticker', color: C.green, glyph: '🍀', defaultSrc: defaultImg('quickie-clover'), current: this.config.customAssets?.['quickie-clover'] || null },
-            { type: 'decoration', id: 'quickie-lightning', name: 'Lightning Sticker', color: C.yellow, glyph: '⚡', defaultSrc: defaultImg('quickie-lightning'), current: this.config.customAssets?.['quickie-lightning'] || null },
-            { type: 'decoration', id: 'quickie-xface', name: 'X Face Sticker', color: '#EF4444', glyph: '😵', defaultSrc: defaultImg('quickie-xface'), current: this.config.customAssets?.['quickie-xface'] || null },
-            { type: 'decoration', id: 'quickie-sad', name: 'Sad Sticker', color: C.pink, glyph: '😢', defaultSrc: defaultImg('quickie-sad'), current: this.config.customAssets?.['quickie-sad'] || null },
-            { type: 'background', id: 'quickie-logo', name: 'Logo', color: C.blue, glyph: 'MrQ', defaultSrc: defaultImg('quickie-logo'), current: this.config.customAssets?.['quickie-logo'] || null },
+            { type: 'icon', id: 'quickie-safe', name: 'Safe Tile Icon', color: C.green, glyph: '💎', current: this.config.customAssets?.['quickie-safe'] || null },
+            { type: 'icon', id: 'quickie-bomb', name: 'Bomb Icon', color: '#EF4444', glyph: '💣', current: this.config.customAssets?.['quickie-bomb'] || null },
+            { type: 'icon', id: 'quickie-mega', name: 'Mega Bomb Icon', color: C.pink, glyph: '💀', current: this.config.customAssets?.['quickie-mega'] || null },
+            { type: 'decoration', id: 'quickie-diamond', name: 'Diamond Sticker', color: C.sky, glyph: '💎', current: this.config.customAssets?.['quickie-diamond'] || null },
+            { type: 'decoration', id: 'quickie-crown', name: 'Crown Sticker', color: C.yellow, glyph: '👑', current: this.config.customAssets?.['quickie-crown'] || null },
+            { type: 'decoration', id: 'quickie-seven', name: '7 Sticker', color: '#EF4444', glyph: '7', current: this.config.customAssets?.['quickie-seven'] || null },
+            { type: 'decoration', id: 'quickie-cherries', name: 'Cherries Sticker', color: '#EF4444', glyph: '🍒', current: this.config.customAssets?.['quickie-cherries'] || null },
+            { type: 'decoration', id: 'quickie-clover', name: 'Clover Sticker', color: C.green, glyph: '🍀', current: this.config.customAssets?.['quickie-clover'] || null },
+            { type: 'decoration', id: 'quickie-lightning', name: 'Lightning Sticker', color: C.yellow, glyph: '⚡', current: this.config.customAssets?.['quickie-lightning'] || null },
+            { type: 'decoration', id: 'quickie-xface', name: 'X Face Sticker', color: '#EF4444', glyph: '😵', current: this.config.customAssets?.['quickie-xface'] || null },
+            { type: 'decoration', id: 'quickie-sad', name: 'Sad Sticker', color: C.pink, glyph: '😢', current: this.config.customAssets?.['quickie-sad'] || null },
+            { type: 'background', id: 'quickie-logo', name: 'Logo', color: C.blue, glyph: 'MrQ', current: this.config.customAssets?.['quickie-logo'] || null },
         ];
     }
 

@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { compileScene } from '../engine/SceneCompiler';
 
-export function ChatPanel({ apiKey, provider, gameConfig, sceneSource, onSceneModified, onSceneUndo, canUndo }) {
+const IMAGE_KEYWORDS = /\b(generate|create|make|draw|design)\b.*\b(image|icon|sticker|picture|art|asset|symbol|sprite|graphic)\b/i;
+
+export function ChatPanel({ apiKey, provider, gameConfig, sceneSource, onSceneModified, onSceneUndo, canUndo, usedAssets, onAssetChange }) {
     const [messages, setMessages] = useState([
-        { role: 'assistant', content: 'Hi! I\'m your casino game design assistant. I can modify your game in real-time — just tell me what to change!' }
+        { role: 'assistant', content: 'Hi! I\'m your casino game design assistant. I can modify your game in real-time — just tell me what to change!\n\nI can also generate images for your assets. Try "generate cat-themed sticker images"!' }
     ]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -17,6 +19,62 @@ export function ChatPanel({ apiKey, provider, gameConfig, sceneSource, onSceneMo
         scrollToBottom();
     }, [messages]);
 
+    const handleImageGeneration = async (userMessage) => {
+        setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `Generating images for ${(usedAssets || []).length} asset(s)... This may take a moment.`,
+            type: 'modification'
+        }]);
+
+        try {
+            const response = await fetch('/api/nano-banana', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: userMessage,
+                    assets: usedAssets || [],
+                    history: messages.map(m => `${m.role}: ${m.content}`)
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.generatedAssets) {
+                const savedImages = JSON.parse(localStorage.getItem('qtm_generated_images') || '[]');
+                for (const [assetId, imageUrl] of Object.entries(data.generatedAssets)) {
+                    onAssetChange(assetId, imageUrl);
+                    const asset = (usedAssets || []).find(a => String(a.id) === String(assetId));
+                    const name = asset ? asset.name : assetId;
+                    savedImages.push({
+                        id: Date.now() + '_' + assetId,
+                        name: name + ' (' + userMessage.slice(0, 30) + ')',
+                        src: imageUrl,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+                localStorage.setItem('qtm_generated_images', JSON.stringify(savedImages));
+                window.dispatchEvent(new Event('storage'));
+                setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: data.message || `Generated ${Object.keys(data.generatedAssets).length} image(s)!`,
+                    type: 'modification'
+                }]);
+            } else {
+                setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: data.message || 'Could not generate images.',
+                    type: 'error'
+                }]);
+            }
+        } catch (error) {
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: 'Error: Unable to connect to image generation service.',
+                type: 'error'
+            }]);
+        }
+    };
+
     const handleSend = async () => {
         if (!input.trim() || loading) return;
 
@@ -27,6 +85,12 @@ export function ChatPanel({ apiKey, provider, gameConfig, sceneSource, onSceneMo
         setLoading(true);
 
         try {
+            // Check if user is asking for image generation
+            if (IMAGE_KEYWORDS.test(userMessage) && usedAssets && usedAssets.length > 0) {
+                await handleImageGeneration(userMessage);
+                return;
+            }
+
             const history = messages.map(m => `${m.role}: ${m.content}`);
 
             const response = await fetch('/api/chat', {

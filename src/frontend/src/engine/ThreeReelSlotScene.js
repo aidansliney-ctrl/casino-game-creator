@@ -507,7 +507,22 @@ export class ThreeReelSlotScene {
             if (customAsset.length > 10 || customAsset.startsWith('data:')) {
                 const img = this.assetCache.get(symbol.id);
                 if (img) {
-                    ctx.drawImage(img, x + 5 * scale, y + 5 * scale, size - 10 * scale, size - 10 * scale);
+                    // Draw with preserved aspect ratio, centered in cell
+                    const pad = 5 * scale;
+                    const cellW = size - pad * 2;
+                    const cellH = size - pad * 2;
+                    const imgRatio = img.naturalWidth / img.naturalHeight;
+                    let drawW, drawH;
+                    if (imgRatio > 1) {
+                        drawW = cellW;
+                        drawH = cellW / imgRatio;
+                    } else {
+                        drawH = cellH;
+                        drawW = cellH * imgRatio;
+                    }
+                    const drawX = x + pad + (cellW - drawW) / 2;
+                    const drawY = y + pad + (cellH - drawH) / 2;
+                    ctx.drawImage(img, drawX, drawY, drawW, drawH);
                 } else {
                     this.loadAsset(symbol.id, customAsset);
                     this.drawGlyph(ctx, symbol, cx, cy, size);

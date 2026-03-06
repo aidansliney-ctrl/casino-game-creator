@@ -1,6 +1,7 @@
 import threeReelSlotV1 from '../ThreeReelSlotScene.js?raw';
 import rouletteV1 from '../RouletteScene.js?raw';
-import quickieDropV1 from '../QuickieDropScene.js?raw';
+import quickieDropV1 from '../QuickieDropScene.v1.0.js?raw';
+import quickieDropV1_1 from '../QuickieDropScene.js?raw';
 import slotGameV1 from '../SlotGameScene.js?raw';
 
 export const templates = {
@@ -45,6 +46,17 @@ export const templates = {
                 'Physics-based ball movement',
                 'Configurable multiplier zones',
                 'Auto-play support'
+            ]
+        },
+        {
+            version: '1.1',
+            label: 'v1.1 — Quickie Drop',
+            source: quickieDropV1_1,
+            changes: [
+                'Added defaultSrc to getUsedAssets() for Images panel display',
+                'Assets panel now shows actual sticker images instead of emoji glyphs',
+                'Image dimensions and file size visible for all assets',
+                'Fixed image stretching — _drawImg now preserves aspect ratio'
             ]
         }
     ],

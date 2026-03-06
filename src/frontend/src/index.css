@@ -520,6 +520,8 @@ canvas {
 
 .modal-body {
   padding: 1.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 /* Settings Styles */

@@ -352,7 +352,7 @@ function App() {
                         <TabButton label="Game Type" active={activeTab === 'config'} onClick={() => setActiveTab('config')} />
                         <TabButton label="Version" active={activeTab === 'version'} onClick={() => setActiveTab('version')} />
                         <TabButton label="Maths" active={activeTab === 'maths'} onClick={() => setActiveTab('maths')} />
-                        <TabButton label="Assets" active={activeTab === 'assets'} onClick={() => setActiveTab('assets')} />
+                        <TabButton label="Images" active={activeTab === 'assets'} onClick={() => setActiveTab('assets')} />
                         <TabButton label="Audio" active={activeTab === 'audio'} onClick={() => setActiveTab('audio')} />
                         <TabButton label="Theme" active={activeTab === 'theme'} onClick={() => setActiveTab('theme')} />
                     </div>
@@ -482,6 +482,8 @@ function App() {
                         onSceneModified={handleSceneModified}
                         onSceneUndo={handleSceneUndo}
                         canUndo={sceneSourceHistory.length > 0}
+                        usedAssets={usedAssets}
+                        onAssetChange={handleAssetChange}
                     />
                 </aside>
 

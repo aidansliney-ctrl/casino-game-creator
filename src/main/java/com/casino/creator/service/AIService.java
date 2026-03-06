@@ -13,6 +13,11 @@ import com.anthropic.models.messages.ContentBlock;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.google.genai.types.GenerateContentConfig;
+import com.google.genai.types.Part;
+
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +28,7 @@ public class AIService {
     @Value("${gemini.api.key:}")
     private String apiKey;
 
-    private static final String MODEL_NAME = "gemini-2.5-flash";
+    private static final String MODEL_NAME = "gemini-3.1-pro-preview";
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String CODE_MODIFICATION_PROMPT = """
@@ -156,6 +161,136 @@ public class AIService {
             result.put("response", rawResponse);
             return result;
         }
+    }
+
+    /**
+     * Public entry point for calling the AI provider with a raw prompt.
+     */
+    public String callProvider(String prompt, String clientApiKey, String provider) throws Exception {
+        if ("claude".equalsIgnoreCase(provider)) {
+            return chatWithClaude(prompt, clientApiKey, false);
+        } else {
+            return chatWithGemini(prompt, clientApiKey, false);
+        }
+    }
+
+    /**
+     * Generate a sticker-style image using Gemini, then remove the background with rembg.
+     * Returns a base64-encoded data URL (data:image/png;base64,...) or null on failure.
+     */
+    public String generateImage(String prompt, String referenceImageDataUrl) throws Exception {
+        String keyToUse = (this.apiKey != null && !this.apiKey.isEmpty()) ? this.apiKey : null;
+        if (keyToUse == null) {
+            throw new Exception("Gemini API Key is missing.");
+        }
+
+        Client client = Client.builder().apiKey(keyToUse).build();
+
+        GenerateContentConfig config = GenerateContentConfig.builder()
+                .responseModalities("IMAGE", "TEXT")
+                .build();
+
+        GenerateContentResponse response;
+
+        if (referenceImageDataUrl != null && !referenceImageDataUrl.isEmpty()
+                && referenceImageDataUrl.startsWith("data:")) {
+            // Multimodal: send text + reference image
+            String mimeType = "image/png";
+            String base64Data = referenceImageDataUrl;
+            int commaIdx = referenceImageDataUrl.indexOf(',');
+            if (commaIdx > 0) {
+                String prefix = referenceImageDataUrl.substring(0, commaIdx);
+                if (prefix.contains("/")) {
+                    mimeType = prefix.replaceAll("^data:", "").replaceAll(";base64$", "");
+                }
+                base64Data = referenceImageDataUrl.substring(commaIdx + 1);
+            }
+            byte[] imageBytes = Base64.getDecoder().decode(base64Data);
+
+            List<Part> parts = List.of(
+                    Part.builder().text(prompt).build(),
+                    Part.builder().inlineData(
+                            com.google.genai.types.Blob.builder()
+                                    .mimeType(mimeType)
+                                    .data(imageBytes)
+                                    .build()
+                    ).build()
+            );
+
+            com.google.genai.types.Content content = com.google.genai.types.Content.builder()
+                    .role("user")
+                    .parts(parts)
+                    .build();
+
+            response = client.models.generateContent(
+                    "nano-banana-pro-preview",
+                    content,
+                    config);
+        } else {
+            // Text-only prompt
+            response = client.models.generateContent(
+                    "nano-banana-pro-preview",
+                    prompt,
+                    config);
+        }
+
+        // Extract image part from response
+        String rawBase64 = null;
+        for (Part part : response.parts()) {
+            if (part.inlineData().isPresent()) {
+                var blob = part.inlineData().get();
+                if (blob.data().isPresent() && blob.mimeType().isPresent()) {
+                    byte[] data = blob.data().get();
+                    rawBase64 = Base64.getEncoder().encodeToString(data);
+                    break;
+                }
+            }
+        }
+
+        if (rawBase64 == null) {
+            return null;
+        }
+
+        // Remove background using rembg Python script
+        String transparentBase64 = removeBackground(rawBase64);
+        return "data:image/png;base64," + transparentBase64;
+    }
+
+    /**
+     * Calls the rembg Python script to remove background and add sticker outline.
+     */
+    private String removeBackground(String base64Png) throws Exception {
+        // Find the script relative to the working directory
+        String scriptPath = System.getProperty("user.dir") + "/scripts/remove_bg.py";
+
+        ProcessBuilder pb = new ProcessBuilder("python3", scriptPath);
+        pb.redirectErrorStream(false);
+        Process process = pb.start();
+
+        // Write base64 to stdin
+        try (var os = process.getOutputStream()) {
+            os.write(base64Png.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            os.flush();
+        }
+
+        // Read result from stdout
+        String result;
+        try (var is = process.getInputStream()) {
+            result = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+        }
+
+        // Read any errors
+        String errors;
+        try (var es = process.getErrorStream()) {
+            errors = new String(es.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new Exception("rembg failed (exit " + exitCode + "): " + errors);
+        }
+
+        return result;
     }
 
     private String chatWithGemini(String prompt, String clientApiKey, boolean highTokenMode) throws Exception {

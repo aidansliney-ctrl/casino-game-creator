@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const STICKER_IMAGES = [
     { name: 'Diamond', src: '/icons/diamond-sticker.png' },
@@ -32,13 +32,37 @@ const EGYPTIAN_ICONS = [
     '𓀀', '𓁐', '𓃠', '𓅓', '𓆗', '𓋴', '𓍯', '𓐍'
 ];
 
+function useGeneratedImages() {
+    const [images, setImages] = useState(() => {
+        return JSON.parse(localStorage.getItem('qtm_generated_images') || '[]');
+    });
+
+    useEffect(() => {
+        const handleStorage = () => {
+            setImages(JSON.parse(localStorage.getItem('qtm_generated_images') || '[]'));
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, []);
+
+    return images;
+}
+
 export function AssetPickerModal({ isOpen, onClose, onSelect, assetId, assetName }) {
     const [tab, setTab] = useState('stickers');
+    const generatedImages = useGeneratedImages();
 
     if (!isOpen) return null;
 
     const handleBackdropClick = (e) => {
         if (e.target.className === 'modal-overlay') onClose();
+    };
+
+    const handleDeleteGenerated = (imageId) => {
+        const saved = JSON.parse(localStorage.getItem('qtm_generated_images') || '[]');
+        const updated = saved.filter(img => img.id !== imageId);
+        localStorage.setItem('qtm_generated_images', JSON.stringify(updated));
+        window.dispatchEvent(new Event('storage'));
     };
 
     return (
@@ -54,6 +78,16 @@ export function AssetPickerModal({ isOpen, onClose, onSelect, assetId, assetName
                     </p>
 
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                        <button
+                            className="btn btn-sm"
+                            style={{
+                                background: tab === 'generated' ? 'var(--primary)' : 'var(--bg-input)',
+                                color: tab === 'generated' ? 'black' : 'var(--text-dim)',
+                            }}
+                            onClick={() => setTab('generated')}
+                        >
+                            Generated ({generatedImages.length})
+                        </button>
                         <button
                             className="btn btn-sm"
                             style={{
@@ -75,6 +109,77 @@ export function AssetPickerModal({ isOpen, onClose, onSelect, assetId, assetName
                             Egyptian Glyphs
                         </button>
                     </div>
+
+                    {tab === 'generated' && (
+                        generatedImages.length === 0 ? (
+                            <div style={{ color: 'var(--text-dim)', fontSize: '0.875rem', fontStyle: 'italic', padding: '2rem 0', textAlign: 'center' }}>
+                                No generated images yet. Use Nano Banana on the Images tab to generate some!
+                            </div>
+                        ) : (
+                            <div className="asset-picker-grid">
+                                {generatedImages.map((img) => (
+                                    <div
+                                        key={img.id}
+                                        className="picker-option"
+                                        title={img.name}
+                                        style={{ padding: '0.25rem', position: 'relative' }}
+                                    >
+                                        <img
+                                            src={img.src}
+                                            alt={img.name}
+                                            style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'contain',
+                                                cursor: 'pointer',
+                                            }}
+                                            onClick={() => {
+                                                onSelect(img.src);
+                                                onClose();
+                                            }}
+                                        />
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteGenerated(img.id);
+                                            }}
+                                            style={{
+                                                position: 'absolute',
+                                                top: '2px',
+                                                right: '2px',
+                                                background: 'rgba(0,0,0,0.7)',
+                                                color: 'var(--accent)',
+                                                border: 'none',
+                                                borderRadius: '50%',
+                                                width: '18px',
+                                                height: '18px',
+                                                fontSize: '10px',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                lineHeight: 1,
+                                            }}
+                                            title="Delete this image"
+                                        >
+                                            &times;
+                                        </button>
+                                        <div style={{
+                                            fontSize: '0.6rem',
+                                            color: 'var(--text-dim)',
+                                            textAlign: 'center',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                            marginTop: '2px',
+                                        }}>
+                                            {img.name}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    )}
 
                     {tab === 'stickers' && (
                         <div className="asset-picker-grid">
