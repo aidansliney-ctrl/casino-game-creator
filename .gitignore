@@ -1,0 +1,20 @@
+HELP.md
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+.classpath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/.gitkeep
+.DS_Store
+*.class
+
+# Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
