@@ -1,7 +1,3 @@
-/**
- * AudioManager - Generates and manages all game audio using Web Audio API.
- * No external files needed — all sounds are synthesized.
- */
 export class AudioManager {
     constructor() {
         this.ctx = null;
@@ -85,13 +81,17 @@ export class AudioManager {
         this.ensureContext();
         if (!this.ctx || this.muted) return;
 
-        // Try custom audio first
         if (this.customAudio[soundId]) {
             const played = await this.playCustom(soundId);
             if (played) return;
         }
 
-        // Fall back to synthesized audio
+        const mp3 = AudioManager.MP3_SOUNDS[soundId];
+        if (mp3) {
+            this._playMP3(soundId, mp3.src, mp3.vol);
+            return;
+        }
+
         switch (soundId) {
             case 'spin': this._playSpin(); break;
             case 'reelStop': this._playReelStop(); break;
@@ -103,7 +103,35 @@ export class AudioManager {
         }
     }
 
-    // --- Synthesized Sounds ---
+    async _playMP3(id, src, vol = 0.7) {
+        if (!this.ctx) return;
+        try {
+            let buffer = this.audioBuffers.get(id);
+            if (!buffer) {
+                const resp = await fetch(src);
+                const ab = await resp.arrayBuffer();
+                buffer = await this.ctx.decodeAudioData(ab);
+                this.audioBuffers.set(id, buffer);
+            }
+            const source = this.ctx.createBufferSource();
+            source.buffer = buffer;
+            const gain = this.ctx.createGain();
+            gain.gain.value = vol;
+            source.connect(gain);
+            gain.connect(this.masterGain);
+            source.start(0);
+        } catch (e) {
+            console.warn(`[AudioManager] MP3 play failed for ${id}:`, e);
+        }
+    }
+
+    static MP3_SOUNDS = {
+        safe: { src: '/sounds/money.mp3', vol: 0.7 },
+        bomb: { src: '/sounds/ack.mp3', vol: 0.8 },
+        megaBomb: { src: '/sounds/bomb.mp3', vol: 0.8 },
+        quickieWin: { src: '/sounds/yay.mp3', vol: 0.8 },
+        quickieLose: { src: '/sounds/lose-some.mp3', vol: 0.7 },
+    };
 
     _playSpin() {
         const now = this.ctx.currentTime;
@@ -286,18 +314,28 @@ export class AudioManager {
         source.start(time);
     }
 
-    /**
-     * Returns all available sound slots with metadata.
-     */
-    static getSoundSlots() {
-        return [
-            { id: 'spin', name: 'Spin Start', description: 'Plays when the player presses spin', icon: '🔄', category: 'gameplay' },
-            { id: 'reelStop', name: 'Reel Stop', description: 'Plays as each reel locks into place', icon: '🛑', category: 'gameplay' },
-            { id: 'win', name: 'Win', description: 'Celebratory jingle on a winning spin', icon: '🎵', category: 'feedback' },
-            { id: 'bigWin', name: 'Big Win', description: 'Grand fanfare for large payouts', icon: '🎺', category: 'feedback' },
-            { id: 'buttonClick', name: 'Button Click', description: 'UI interaction feedback', icon: '🔘', category: 'ui' },
-            { id: 'ambient', name: 'Ambient Pad', description: 'Background atmosphere chord', icon: '🌙', category: 'ambience' },
+    static getSoundSlots(gameType) {
+        const all = [
+            { id: 'spin', name: 'Spin Start', description: 'Plays when the player presses spin', icon: '🔄', category: 'gameplay', games: ['slots'] },
+            { id: 'reelStop', name: 'Reel Stop', description: 'Plays as each reel locks into place', icon: '🛑', category: 'gameplay', games: ['slots'] },
+            { id: 'win', name: 'Win', description: 'Celebratory jingle on a winning spin', icon: '🎵', category: 'feedback', games: ['slots', 'table'] },
+            { id: 'bigWin', name: 'Big Win', description: 'Grand fanfare for large payouts', icon: '🎺', category: 'feedback', games: ['slots', 'table'] },
+            { id: 'buttonClick', name: 'Button Click', description: 'UI interaction feedback', icon: '🔘', category: 'ui', games: ['slots', 'table', 'quickie', 'instant'] },
+            { id: 'ambient', name: 'Ambient Pad', description: 'Background atmosphere chord', icon: '🌙', category: 'ambience', games: ['slots', 'table'] },
+            { id: 'safe', name: 'Safe Tile', description: 'Plays when a safe tile is revealed', icon: '💎', category: 'gameplay', games: ['quickie'] },
+            { id: 'bomb', name: 'Bomb Hit', description: 'Plays when a regular bomb is hit', icon: '💣', category: 'feedback', games: ['quickie'] },
+            { id: 'megaBomb', name: 'Mega Bomb', description: 'Plays when the mega bomb is hit', icon: '💀', category: 'feedback', games: ['quickie'] },
+            { id: 'quickieWin', name: 'Quickie Win', description: 'Plays on a winning round end', icon: '🎉', category: 'feedback', games: ['quickie'] },
+            { id: 'quickieLose', name: 'Quickie Lose', description: 'Plays when mega bomb ends the game', icon: '😢', category: 'feedback', games: ['quickie'] },
         ];
+        if (!gameType) return all;
+        const prefix = gameType.startsWith('slots') ? 'slots'
+            : gameType.startsWith('table') ? 'table'
+            : gameType.startsWith('quickie') ? 'quickie'
+            : gameType.startsWith('instant') ? 'instant'
+            : null;
+        if (!prefix) return all;
+        return all.filter(s => s.games.includes(prefix));
     }
 
     destroy() {

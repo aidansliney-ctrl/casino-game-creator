@@ -14,6 +14,7 @@ import { AudioManager } from './engine/AudioManager';
 import logo from './assets/logo.png';
 import { ThreeReelSlotScene } from './engine/ThreeReelSlotScene';
 import { RouletteScene } from './engine/RouletteScene';
+import { QuickieDropScene } from './engine/QuickieDropScene';
 
 function App() {
     const canvasRef = useRef(null);
@@ -81,6 +82,8 @@ function App() {
             scene = new ThreeReelSlotScene(gameConfig);
         } else if (gameConfig.gameType === 'table-roulette') {
             scene = new RouletteScene(gameConfig);
+        } else if (gameConfig.gameType === 'quickie-drop') {
+            scene = new QuickieDropScene(gameConfig);
         } else if (gameConfig.gameType.startsWith('slots')) {
             scene = new SlotGameScene(gameConfig);
         } else {
@@ -307,6 +310,7 @@ function App() {
                         {activeTab === 'audio' && (
                             <AudioPanel
                                 audioManager={audioManagerRef.current}
+                                gameType={gameConfig.gameType}
                                 onAudioChange={(soundId, url) => {
                                     setGameConfig(prev => ({
                                         ...prev,

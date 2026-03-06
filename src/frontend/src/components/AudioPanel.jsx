@@ -8,13 +8,24 @@ const CATEGORY_COLORS = {
     ambience: { bg: 'rgba(241, 196, 15, 0.15)', border: '#f1c40f', text: '#f9e79f' },
 };
 
-export function AudioPanel({ audioManager, onAudioChange }) {
+const AVAILABLE_SOUNDS = [
+    { name: 'Money (Safe)', src: '/sounds/money.mp3' },
+    { name: 'Ack (Bomb)', src: '/sounds/ack.mp3' },
+    { name: 'Bomb (Mega)', src: '/sounds/bomb.mp3' },
+    { name: 'Yay (Win)', src: '/sounds/yay.mp3' },
+    { name: 'Lose Some', src: '/sounds/lose-some.mp3' },
+    { name: 'Funny Money', src: '/sounds/funny-money.mp3' },
+];
+
+export function AudioPanel({ audioManager, onAudioChange, gameType }) {
     const fileInputRefs = useRef({});
     const [playingId, setPlayingId] = useState(null);
     const [volume, setVolume] = useState(audioManager?.volume ?? 0.5);
     const [muted, setMuted] = useState(audioManager?.muted ?? false);
+    const [pickerOpen, setPickerOpen] = useState(null); // soundId or null
+    const [previewingSrc, setPreviewingSrc] = useState(null);
 
-    const soundSlots = AudioManager.getSoundSlots();
+    const soundSlots = AudioManager.getSoundSlots(gameType);
 
     const handlePreview = async (soundId) => {
         if (!audioManager) return;
@@ -38,6 +49,26 @@ export function AudioPanel({ audioManager, onAudioChange }) {
             }
         };
         reader.readAsDataURL(file);
+    };
+
+    const handlePickAudio = (soundId, src) => {
+        if (audioManager) {
+            audioManager.setCustomAudio(soundId, src);
+        }
+        if (onAudioChange) {
+            onAudioChange(soundId, src);
+        }
+        setPickerOpen(null);
+    };
+
+    const handlePreviewSound = async (src) => {
+        setPreviewingSrc(src);
+        try {
+            const audio = new Audio(src);
+            audio.volume = volume;
+            await audio.play();
+        } catch (e) { /* silent */ }
+        setTimeout(() => setPreviewingSrc(null), 800);
     };
 
     const handleReset = (soundId) => {
@@ -72,7 +103,7 @@ export function AudioPanel({ audioManager, onAudioChange }) {
     return (
         <div className="audio-panel">
             <h3 className="config-label" style={{ marginBottom: '0.75rem' }}>
-                🎧 Audio Settings
+                Audio Settings
             </h3>
 
             {/* Master Controls */}
@@ -159,6 +190,13 @@ export function AudioPanel({ audioManager, onAudioChange }) {
                                     {isPlaying ? '⏹' : '▶'} Preview
                                 </button>
 
+                                <button
+                                    className="audio-play-btn"
+                                    onClick={() => setPickerOpen(slot.id)}
+                                >
+                                    🎵 Pick Audio
+                                </button>
+
                                 <label className="audio-upload-btn">
                                     📤 Upload
                                     <input
@@ -183,6 +221,79 @@ export function AudioPanel({ audioManager, onAudioChange }) {
                     );
                 })}
             </div>
+
+            {/* Audio Picker Modal */}
+            {pickerOpen && (
+                <div
+                    className="modal-overlay"
+                    onClick={(e) => { if (e.target.className === 'modal-overlay') setPickerOpen(null); }}
+                >
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h2>Pick Audio: {soundSlots.find(s => s.id === pickerOpen)?.name}</h2>
+                            <button className="modal-close" onClick={() => setPickerOpen(null)}>&times;</button>
+                        </div>
+                        <div className="modal-body">
+                            <p className="settings-description">
+                                Select a built-in sound to use for this slot.
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                {AVAILABLE_SOUNDS.map((sound) => (
+                                    <div
+                                        key={sound.src}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.75rem',
+                                            padding: '0.625rem 0.75rem',
+                                            background: 'var(--bg-dark)',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.borderColor = 'var(--primary)';
+                                            e.currentTarget.style.background = 'var(--bg-input)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.borderColor = 'var(--border)';
+                                            e.currentTarget.style.background = 'var(--bg-dark)';
+                                        }}
+                                    >
+                                        <button
+                                            className="audio-play-btn"
+                                            style={{ flexShrink: 0, padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handlePreviewSound(sound.src);
+                                            }}
+                                            disabled={previewingSrc === sound.src}
+                                        >
+                                            {previewingSrc === sound.src ? '⏹' : '▶'}
+                                        </button>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                {sound.name}
+                                            </div>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                                                {sound.src}
+                                            </div>
+                                        </div>
+                                        <button
+                                            className="btn btn-sm"
+                                            style={{ background: 'var(--primary)', color: 'black', flexShrink: 0 }}
+                                            onClick={() => handlePickAudio(pickerOpen, sound.src)}
+                                        >
+                                            Use
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

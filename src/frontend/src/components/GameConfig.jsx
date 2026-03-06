@@ -9,7 +9,7 @@ export function GameConfig({ config, onChange, onUpdate, hasChanges }) {
         { id: 'table-baccarat', name: 'Baccarat', category: 'Table Games' },
         { id: 'instant-scratch', name: 'Scratch Cards', category: 'Instant Win' },
         { id: 'instant-wheel', name: 'Wheel Spinner', category: 'Instant Win' },
-        { id: 'quickie', name: 'Quickie Game', category: 'Quickies' },
+        { id: 'quickie-drop', name: 'Quickie Drop', category: 'Quickies' },
     ];
 
     const groupedTypes = gameTypes.reduce((acc, type) => {
