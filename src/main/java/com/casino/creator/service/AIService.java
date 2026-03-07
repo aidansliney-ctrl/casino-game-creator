@@ -28,6 +28,9 @@ public class AIService {
     @Value("${gemini.api.key:}")
     private String apiKey;
 
+    @Value("${elevenlabs.api.key:}")
+    private String elevenLabsApiKey;
+
     private static final String MODEL_NAME = "gemini-3.1-pro-preview";
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -254,6 +257,44 @@ public class AIService {
         // Remove background using rembg Python script
         String transparentBase64 = removeBackground(rawBase64);
         return "data:image/png;base64," + transparentBase64;
+    }
+
+    /**
+     * Generate a sound effect using ElevenLabs Sound Generation API.
+     * Returns a base64-encoded data URL (data:audio/mpeg;base64,...) or throws on failure.
+     */
+    public String generateSoundEffect(String prompt, Double durationSeconds) throws Exception {
+        if (elevenLabsApiKey == null || elevenLabsApiKey.isEmpty()) {
+            throw new Exception("ElevenLabs API Key is missing. Set the ELEVENLABS_API_KEY environment variable.");
+        }
+
+        var httpClient = java.net.http.HttpClient.newHttpClient();
+
+        // Build JSON body
+        StringBuilder jsonBody = new StringBuilder();
+        jsonBody.append("{\"text\":\"").append(prompt.replace("\"", "\\\"")).append("\"");
+        if (durationSeconds != null && durationSeconds > 0) {
+            jsonBody.append(",\"duration_seconds\":").append(durationSeconds);
+        }
+        jsonBody.append("}");
+
+        var request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("https://api.elevenlabs.io/v1/sound-generation"))
+                .header("xi-api-key", elevenLabsApiKey)
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonBody.toString()))
+                .build();
+
+        var response = httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+
+        if (response.statusCode() != 200) {
+            String errorBody = new String(response.body(), java.nio.charset.StandardCharsets.UTF_8);
+            throw new Exception("ElevenLabs API error (HTTP " + response.statusCode() + "): " + errorBody);
+        }
+
+        byte[] audioBytes = response.body();
+        String base64Audio = Base64.getEncoder().encodeToString(audioBytes);
+        return "data:audio/mpeg;base64," + base64Audio;
     }
 
     /**

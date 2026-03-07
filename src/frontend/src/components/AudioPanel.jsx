@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { AudioManager } from '../engine/AudioManager';
 
 const CATEGORY_COLORS = {
@@ -17,13 +17,159 @@ const AVAILABLE_SOUNDS = [
     { name: 'Funny Money', src: '/sounds/funny-money.mp3' },
 ];
 
+function useGeneratedAudio() {
+    const [audio, setAudio] = useState(() => {
+        return JSON.parse(localStorage.getItem('qtm_generated_audio') || '[]');
+    });
+
+    useEffect(() => {
+        const handleStorage = () => {
+            setAudio(JSON.parse(localStorage.getItem('qtm_generated_audio') || '[]'));
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, []);
+
+    return audio;
+}
+
+function SlotAudioGenerator({ slot, onGenerated }) {
+    const [input, setInput] = useState('');
+    const [duration, setDuration] = useState(String(slot.duration || 1));
+    const [status, setStatus] = useState(null);
+
+    const handleGenerate = async () => {
+        if (!input.trim()) return;
+        const prompt = input.trim();
+        setStatus({ type: 'loading', content: 'Generating...' });
+
+        try {
+            const body = { prompt };
+            const dur = parseFloat(duration);
+            if (dur > 0) {
+                body.duration = dur;
+            }
+
+            const response = await fetch('/api/audio-generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (data.audioDataUrl) {
+                // Save to generated audio library
+                const savedAudio = JSON.parse(localStorage.getItem('qtm_generated_audio') || '[]');
+                savedAudio.push({
+                    id: Date.now() + '_audio',
+                    name: slot.name + ' (' + prompt.slice(0, 30) + ')',
+                    src: data.audioDataUrl,
+                    timestamp: new Date().toISOString()
+                });
+                localStorage.setItem('qtm_generated_audio', JSON.stringify(savedAudio));
+                window.dispatchEvent(new Event('storage'));
+                // Also assign directly to this slot
+                onGenerated(slot.id, data.audioDataUrl);
+                setStatus({ type: 'success', content: 'Audio generated & assigned!' });
+                setInput('');
+            } else {
+                setStatus({ type: 'error', content: data.message || 'Could not generate audio.' });
+            }
+        } catch {
+            setStatus({ type: 'error', content: 'Failed to connect to audio service.' });
+        }
+    };
+
+    return (
+        <div style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleGenerate();
+                        }
+                    }}
+                    placeholder={`Describe sound for ${slot.name}...`}
+                    disabled={status?.type === 'loading'}
+                    style={{
+                        flex: 1,
+                        background: 'var(--bg-input)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text)',
+                        padding: '0.3rem 0.5rem',
+                        fontSize: '0.75rem',
+                        fontFamily: 'inherit',
+                    }}
+                />
+                <input
+                    type="number"
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    title="Duration (seconds)"
+                    min="0.5"
+                    max="22"
+                    step="0.5"
+                    style={{
+                        width: '42px',
+                        background: 'var(--bg-input)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text)',
+                        padding: '0.3rem 0.25rem',
+                        fontSize: '0.7rem',
+                        fontFamily: 'inherit',
+                        textAlign: 'center',
+                    }}
+                />
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>s</span>
+                <button
+                    onClick={handleGenerate}
+                    disabled={status?.type === 'loading' || !input.trim()}
+                    className="btn btn-sm"
+                    style={{
+                        fontSize: '0.7rem',
+                        padding: '0.3rem 0.5rem',
+                        whiteSpace: 'nowrap',
+                        background: status?.type === 'loading' || !input.trim() ? 'var(--bg-input)' : 'var(--primary)',
+                        color: status?.type === 'loading' || !input.trim() ? 'var(--text-dim)' : 'black',
+                    }}
+                >
+                    {status?.type === 'loading' ? '...' : 'Generate'}
+                </button>
+            </div>
+            {status && status.type !== 'loading' && (
+                <div style={{
+                    fontSize: '0.7rem',
+                    marginTop: '0.25rem',
+                    color: status.type === 'error' ? 'var(--accent)' : 'var(--primary)',
+                }}>
+                    {status.type === 'success' ? '\u2705' : '\u26A0\uFE0F'} {status.content}
+                </div>
+            )}
+            {status?.type === 'loading' && (
+                <div style={{ fontSize: '0.7rem', marginTop: '0.25rem', color: 'var(--text-dim)' }}>
+                    <span className="typing-indicator">\u25CF\u25CF\u25CF</span> Generating audio...
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function AudioPanel({ audioManager, onAudioChange, gameType }) {
     const fileInputRefs = useRef({});
     const [playingId, setPlayingId] = useState(null);
     const [volume, setVolume] = useState(audioManager?.volume ?? 0.5);
     const [muted, setMuted] = useState(audioManager?.muted ?? false);
     const [pickerOpen, setPickerOpen] = useState(null); // soundId or null
+    const [pickerTab, setPickerTab] = useState('generated');
     const [previewingSrc, setPreviewingSrc] = useState(null);
+    const generatedAudio = useGeneratedAudio();
 
     const soundSlots = AudioManager.getSoundSlots(gameType);
 
@@ -217,6 +363,18 @@ export function AudioPanel({ audioManager, onAudioChange, gameType }) {
                                     </button>
                                 )}
                             </div>
+
+                            <SlotAudioGenerator
+                                slot={slot}
+                                onGenerated={(soundId, src) => {
+                                    if (audioManager) {
+                                        audioManager.setCustomAudio(soundId, src);
+                                    }
+                                    if (onAudioChange) {
+                                        onAudioChange(soundId, src);
+                                    }
+                                }}
+                            />
                         </div>
                     );
                 })}
@@ -235,61 +393,173 @@ export function AudioPanel({ audioManager, onAudioChange, gameType }) {
                         </div>
                         <div className="modal-body">
                             <p className="settings-description">
-                                Select a built-in sound to use for this slot.
+                                Select a sound to use for this slot.
                             </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                {AVAILABLE_SOUNDS.map((sound) => (
-                                    <div
-                                        key={sound.src}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.75rem',
-                                            padding: '0.625rem 0.75rem',
-                                            background: 'var(--bg-dark)',
-                                            border: '1px solid var(--border)',
-                                            borderRadius: 'var(--radius-md)',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.15s',
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.borderColor = 'var(--primary)';
-                                            e.currentTarget.style.background = 'var(--bg-input)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.borderColor = 'var(--border)';
-                                            e.currentTarget.style.background = 'var(--bg-dark)';
-                                        }}
-                                    >
-                                        <button
-                                            className="audio-play-btn"
-                                            style={{ flexShrink: 0, padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handlePreviewSound(sound.src);
-                                            }}
-                                            disabled={previewingSrc === sound.src}
-                                        >
-                                            {previewingSrc === sound.src ? '⏹' : '▶'}
-                                        </button>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                                {sound.name}
-                                            </div>
-                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
-                                                {sound.src}
-                                            </div>
-                                        </div>
-                                        <button
-                                            className="btn btn-sm"
-                                            style={{ background: 'var(--primary)', color: 'black', flexShrink: 0 }}
-                                            onClick={() => handlePickAudio(pickerOpen, sound.src)}
-                                        >
-                                            Use
-                                        </button>
-                                    </div>
-                                ))}
+
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                                <button
+                                    className="btn btn-sm"
+                                    style={{
+                                        background: pickerTab === 'generated' ? 'var(--primary)' : 'var(--bg-input)',
+                                        color: pickerTab === 'generated' ? 'black' : 'var(--text-dim)',
+                                    }}
+                                    onClick={() => setPickerTab('generated')}
+                                >
+                                    Generated ({generatedAudio.length})
+                                </button>
+                                <button
+                                    className="btn btn-sm"
+                                    style={{
+                                        background: pickerTab === 'builtin' ? 'var(--primary)' : 'var(--bg-input)',
+                                        color: pickerTab === 'builtin' ? 'black' : 'var(--text-dim)',
+                                    }}
+                                    onClick={() => setPickerTab('builtin')}
+                                >
+                                    Built-in Sounds
+                                </button>
                             </div>
+
+                            {pickerTab === 'generated' && (
+                                generatedAudio.length === 0 ? (
+                                    <div style={{ color: 'var(--text-dim)', fontSize: '0.875rem', fontStyle: 'italic', padding: '2rem 0', textAlign: 'center' }}>
+                                        No generated audio yet. Use the Generate button on any sound slot to create some!
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        {generatedAudio.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.75rem',
+                                                    padding: '0.625rem 0.75rem',
+                                                    background: 'var(--bg-dark)',
+                                                    border: '1px solid var(--border)',
+                                                    borderRadius: 'var(--radius-md)',
+                                                    transition: 'all 0.15s',
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.borderColor = 'var(--primary)';
+                                                    e.currentTarget.style.background = 'var(--bg-input)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.borderColor = 'var(--border)';
+                                                    e.currentTarget.style.background = 'var(--bg-dark)';
+                                                }}
+                                            >
+                                                <button
+                                                    className="audio-play-btn"
+                                                    style={{ flexShrink: 0, padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handlePreviewSound(item.src);
+                                                    }}
+                                                    disabled={previewingSrc === item.src}
+                                                >
+                                                    {previewingSrc === item.src ? '\u23F9' : '\u25B6'}
+                                                </button>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                        {item.name}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>
+                                                        {new Date(item.timestamp).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    className="btn btn-sm"
+                                                    style={{ background: 'var(--primary)', color: 'black', flexShrink: 0 }}
+                                                    onClick={() => handlePickAudio(pickerOpen, item.src)}
+                                                >
+                                                    Use
+                                                </button>
+                                                <button
+                                                    style={{
+                                                        background: 'rgba(0,0,0,0.5)',
+                                                        color: 'var(--accent)',
+                                                        border: 'none',
+                                                        borderRadius: '50%',
+                                                        width: '22px',
+                                                        height: '22px',
+                                                        fontSize: '12px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexShrink: 0,
+                                                    }}
+                                                    title="Delete this audio"
+                                                    onClick={() => {
+                                                        const saved = JSON.parse(localStorage.getItem('qtm_generated_audio') || '[]');
+                                                        const updated = saved.filter(a => a.id !== item.id);
+                                                        localStorage.setItem('qtm_generated_audio', JSON.stringify(updated));
+                                                        window.dispatchEvent(new Event('storage'));
+                                                    }}
+                                                >
+                                                    &times;
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )
+                            )}
+
+                            {pickerTab === 'builtin' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    {AVAILABLE_SOUNDS.map((sound) => (
+                                        <div
+                                            key={sound.src}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.75rem',
+                                                padding: '0.625rem 0.75rem',
+                                                background: 'var(--bg-dark)',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: 'var(--radius-md)',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.borderColor = 'var(--primary)';
+                                                e.currentTarget.style.background = 'var(--bg-input)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.borderColor = 'var(--border)';
+                                                e.currentTarget.style.background = 'var(--bg-dark)';
+                                            }}
+                                        >
+                                            <button
+                                                className="audio-play-btn"
+                                                style={{ flexShrink: 0, padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handlePreviewSound(sound.src);
+                                                }}
+                                                disabled={previewingSrc === sound.src}
+                                            >
+                                                {previewingSrc === sound.src ? '\u23F9' : '\u25B6'}
+                                            </button>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                    {sound.name}
+                                                </div>
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                                                    {sound.src}
+                                                </div>
+                                            </div>
+                                            <button
+                                                className="btn btn-sm"
+                                                style={{ background: 'var(--primary)', color: 'black', flexShrink: 0 }}
+                                                onClick={() => handlePickAudio(pickerOpen, sound.src)}
+                                            >
+                                                Use
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -316,17 +316,17 @@ export class AudioManager {
 
     static getSoundSlots(gameType) {
         const all = [
-            { id: 'spin', name: 'Spin Start', description: 'Plays when the player presses spin', icon: '🔄', category: 'gameplay', games: ['slots'] },
-            { id: 'reelStop', name: 'Reel Stop', description: 'Plays as each reel locks into place', icon: '🛑', category: 'gameplay', games: ['slots'] },
-            { id: 'win', name: 'Win', description: 'Celebratory jingle on a winning spin', icon: '🎵', category: 'feedback', games: ['slots', 'table'] },
-            { id: 'bigWin', name: 'Big Win', description: 'Grand fanfare for large payouts', icon: '🎺', category: 'feedback', games: ['slots', 'table'] },
-            { id: 'buttonClick', name: 'Button Click', description: 'UI interaction feedback', icon: '🔘', category: 'ui', games: ['slots', 'table', 'quickie', 'instant'] },
-            { id: 'ambient', name: 'Ambient Pad', description: 'Background atmosphere chord', icon: '🌙', category: 'ambience', games: ['slots', 'table'] },
-            { id: 'safe', name: 'Safe Tile', description: 'Plays when a safe tile is revealed', icon: '💎', category: 'gameplay', games: ['quickie'] },
-            { id: 'bomb', name: 'Bomb Hit', description: 'Plays when a regular bomb is hit', icon: '💣', category: 'feedback', games: ['quickie'] },
-            { id: 'megaBomb', name: 'Mega Bomb', description: 'Plays when the mega bomb is hit', icon: '💀', category: 'feedback', games: ['quickie'] },
-            { id: 'quickieWin', name: 'Quickie Win', description: 'Plays on a winning round end', icon: '🎉', category: 'feedback', games: ['quickie'] },
-            { id: 'quickieLose', name: 'Quickie Lose', description: 'Plays when mega bomb ends the game', icon: '😢', category: 'feedback', games: ['quickie'] },
+            { id: 'spin', name: 'Spin Start', description: 'Plays when the player presses spin', icon: '🔄', category: 'gameplay', games: ['slots'], duration: 0.5 },
+            { id: 'reelStop', name: 'Reel Stop', description: 'Plays as each reel locks into place', icon: '🛑', category: 'gameplay', games: ['slots'], duration: 0.5 },
+            { id: 'win', name: 'Win', description: 'Celebratory jingle on a winning spin', icon: '🎵', category: 'feedback', games: ['slots', 'table'], duration: 1 },
+            { id: 'bigWin', name: 'Big Win', description: 'Grand fanfare for large payouts', icon: '🎺', category: 'feedback', games: ['slots', 'table'], duration: 2 },
+            { id: 'buttonClick', name: 'Button Click', description: 'UI interaction feedback', icon: '🔘', category: 'ui', games: ['slots', 'table', 'quickie', 'instant'], duration: 0.5 },
+            { id: 'ambient', name: 'Ambient Pad', description: 'Background atmosphere chord', icon: '🌙', category: 'ambience', games: ['slots', 'table'], duration: 4 },
+            { id: 'safe', name: 'Safe Tile', description: 'Plays when a safe tile is revealed', icon: '💎', category: 'gameplay', games: ['quickie'], duration: 1 },
+            { id: 'bomb', name: 'Bomb Hit', description: 'Plays when a regular bomb is hit', icon: '💣', category: 'feedback', games: ['quickie'], duration: 1 },
+            { id: 'megaBomb', name: 'Mega Bomb', description: 'Plays when the mega bomb is hit', icon: '💀', category: 'feedback', games: ['quickie'], duration: 1.5 },
+            { id: 'quickieWin', name: 'Quickie Win', description: 'Plays on a winning round end', icon: '🎉', category: 'feedback', games: ['quickie'], duration: 1.5 },
+            { id: 'quickieLose', name: 'Quickie Lose', description: 'Plays when mega bomb ends the game', icon: '😢', category: 'feedback', games: ['quickie'], duration: 1.5 },
         ];
         if (!gameType) return all;
         const prefix = gameType.startsWith('slots') ? 'slots'
